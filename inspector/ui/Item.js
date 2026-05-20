@@ -166,6 +166,7 @@ export class Item {
 		return this;
 
 	}
+
 	// @reviser lijuhong 新增open方法
 	open() {
 

@@ -1,4 +1,4 @@
-import { Tab } from './ui/Tab.js';
+import { Tab } from './ui/Tab.js'; // @reviser lijuhong 修改引用路径
 
 export class Extension extends Tab {
 

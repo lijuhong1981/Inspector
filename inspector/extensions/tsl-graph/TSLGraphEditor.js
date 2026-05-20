@@ -1,5 +1,5 @@
 import { Raycaster, Vector2, BoxHelper, error, warn } from 'three/webgpu';
-import { Extension } from '../../Extension.js';
+import { Extension } from '../../Extension.js'; //@reviser lijuhong 修改引用路径
 import { TSLGraphLoader } from './TSLGraphLoader.js';
 
 const HOST_SOURCE = 'tsl-graph-host';

@@ -1,8 +1,11 @@
 import { Parameters } from './Parameters.js';
 import { WebGPURenderer, WebGLBackend, Node } from 'three/webgpu';
 import { getItem, setItem } from '../Inspector.js';
+// @reviser lijuhong 直接引入TSLGraphEditor
 import TSLGraphEditor from '../extensions/tsl-graph/TSLGraphEditor.js';
 
+const _EXTENSIONS_PATH = '../extensions/extensions.json';
+// @reviser lijuhong 直接定义扩展列表，不再使用_EXTENSIONS_PATH动态加载
 const _EXTENSIONS = [
 	{
 		name: 'TSL Graph',
@@ -139,7 +142,8 @@ class Settings extends Parameters {
 					if ( value ) {
 
 						_state.activeExtensions[ extension.name ] = {
-							name: extension.name
+							name: extension.name,
+							// url: extension.url // @reviser lijuhong 直接使用class，不再使用url动态加载
 						};
 
 					} else {
@@ -235,7 +239,13 @@ class Settings extends Parameters {
 
 		extension.active = true;
 
-		const ExtensionClass = extension.class;
+		// const extUrl = new URL( extension.url, new URL( _EXTENSIONS_PATH, import.meta.url ) ).href;
+
+		// const module = await import( extUrl );
+
+		// const keys = Object.keys( module );
+		// const ExtensionClass = module[ keys[ 0 ] ];
+		const ExtensionClass = extension.class; // @reviser lijuhong 直接使用class，不再使用url动态加载
 		const extensionTab = new ExtensionClass();
 
 		inspector.addTab( extensionTab );
@@ -251,8 +261,13 @@ class Settings extends Parameters {
 
 	async _getExtensions() {
 
-		return _EXTENSIONS;
+		// const url = new URL( _EXTENSIONS_PATH, import.meta.url );
 
+		// const extensions = await fetch( url ).then( res => res.json() );
+
+		// return extensions;
+		// @reviser lijuhong 直接返回定义的扩展列表，不再使用fetch动态加载
+		return _EXTENSIONS;
 	}
 
 }

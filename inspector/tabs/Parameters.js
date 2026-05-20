@@ -179,6 +179,7 @@ class ParametersGroup {
 		return group;
 
 	}
+
 	// @reviser lijuhong 新增removeFolder方法
 	removeFolder( group ) {
 
