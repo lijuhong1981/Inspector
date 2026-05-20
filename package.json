@@ -1,0 +1,37 @@
+{
+  "name": "@lijuhong1981/inspector",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "module": "index.js",
+  "main": "index.js",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rollup --config rollup.config.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lijuhong1981/Inspector.git"
+  },
+  "keywords": [
+    "three",
+    "inspector"
+  ],
+  "author": "lijuhong1981",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lijuhong1981/Inspector/issues"
+  },
+  "homepage": "https://github.com/lijuhong1981/Inspector#readme",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^1.0.0",
+    "rollup": "^4.60.3",
+    "rollup-plugin-delete": "^3.0.2",
+    "three": ">=0.184.0"
+  }
+}
