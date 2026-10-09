@@ -1,7 +1,7 @@
 import { Tab } from '../ui/Tab.js';
 import { List } from '../ui/List.js';
 import { Item } from '../ui/Item.js';
-import { createValueSpan } from '../ui/utils.js';
+import { createValueSpan, info } from '../ui/utils.js';
 import { ValueString, ValueNumber, ValueSlider, ValueSelect, ValueCheckbox, ValueColor, ValueButton } from '../ui/Values.js';
 
 class ParametersGroup {
@@ -12,6 +12,7 @@ class ParametersGroup {
 		this.name = name;
 
 		this.paramList = new Item( name );
+		this.paramList.setCollapsible( true );
 
 		this.objects = [];
 
@@ -24,10 +25,50 @@ class ParametersGroup {
 		return this;
 
 	}
+
 	// @reviser lijuhong 新增open方法
 	open() {
 
 		this.paramList.open();
+
+		return this;
+
+	}
+
+	// @reviser lijuhong 新增remove方法，用于移除使用add方法添加的
+	remove( editor ) {
+
+		const index = this.objects.findIndex( ( element ) => element.editor === editor );
+
+		if ( index !== - 1 ) {
+
+			const { subItem } = this.objects[ index ];
+			this.paramList.remove( subItem );
+			this.objects.splice( index, 1 );
+
+		}
+
+	}
+
+	name( name ) {
+
+		this.paramList.setValue( 0, name );
+
+		return this;
+
+	}
+
+	show() {
+
+		this.paramList.show();
+
+		return this;
+
+	}
+
+	hide() {
+
+		this.paramList.hide();
 
 		return this;
 
@@ -45,8 +86,9 @@ class ParametersGroup {
 			item = this.addSelect( object, property, params[ 0 ] );
 
 		} else if ( type === 'number' ) {
+
 			// @reviser lijuhong 添加对params[0, 1]元素不为undefined的判断
-			if ( params.length >= 2 && params[0] !== undefined && params[1] !== undefined ) {
+			if ( params.length >= 2 && params[ 0 ] !== undefined && params[ 1 ] !== undefined ) {
 
 				item = this.addSlider( object, property, ...params );
 
@@ -73,18 +115,15 @@ class ParametersGroup {
 		return item;
 
 	}
-	// @reviser lijuhong 新增remove方法，用于移除使用add方法添加的
-	remove( editor ) {
 
-		const index = this.objects.findIndex( ( element ) => element.editor === editor );
+	_addInfo( editor, itemNode ) {
 
-		if ( index !== - 1 ) {
+		editor.info = ( text ) => {
 
-			const { subItem } = this.objects[ index ];
-			this.paramList.remove( subItem );
-			this.objects.splice( index, 1 );
+			info( itemNode, text );
+			return editor;
 
-		}
+		};
 
 	}
 
@@ -92,11 +131,21 @@ class ParametersGroup {
 
 		editor.name = ( name ) => {
 
-			subItem.data[ 0 ].textContent = name;
+			if ( subItem.data[ 0 ].childNodes.length > 0 && subItem.data[ 0 ].firstChild.nodeType === 3 /* Node.TEXT_NODE */ ) {
+
+				subItem.data[ 0 ].firstChild.textContent = name;
+
+			} else {
+
+				subItem.data[ 0 ].insertBefore( document.createTextNode( name ), subItem.data[ 0 ].firstChild );
+
+			}
 
 			return editor;
 
 		};
+
+		this._addInfo( editor, subItem.data[ 0 ] );
 
 		editor.listen = () => {
 
@@ -106,7 +155,9 @@ class ParametersGroup {
 				let propertyValue = object[ property ];
 				// @reviser lijuhong 添加对数值类型属性的精度处理
 				if ( typeof editor.precision === 'number' && typeof propertyValue === 'number' ) {
-					propertyValue = parseFloat(propertyValue.toFixed( editor.precision ));
+
+					propertyValue = parseFloat( propertyValue.toFixed( editor.precision ) );
+
 				}
 
 				if ( value !== propertyValue ) {
@@ -125,6 +176,7 @@ class ParametersGroup {
 
 		};
 
+
 		this._registerParameter( object, property, editor, subItem );
 
 	}
@@ -132,13 +184,18 @@ class ParametersGroup {
 	_registerParameter( object, property, editor, subItem ) {
 
 		this.objects.push( { object: object, key: property, editor: editor, subItem: subItem } );
+
 		// @reviser lijuhong 新增remove方法，调用后将从该Group下移除自身
 		editor.remove = () => {
 
-			this.remove(editor);
+			this.remove( editor );
 
 			return editor;
+
 		};
+
+		editor.addEventListener( 'show', () => subItem.show() );
+		editor.addEventListener( 'hide', () => subItem.hide() );
 
 	}
 
@@ -327,7 +384,7 @@ class ParametersGroup {
 		const value = object[ property ];
 		// @reviser lijuhong 添加step参数
 		const [ min, max, step ] = params;
-		// @reviser lijuhong 添加step参数
+
 		const editor = new ValueNumber( { value, min, max, step } );
 		editor.addEventListener( 'change', ( { value } ) => {
 
@@ -353,6 +410,7 @@ class ParametersGroup {
 	}
 
 	addButton( object, property ) {
+
 		// @reviser lijuhong 添加bind，确保函数内的this指向正确
 		const value = object[ property ].bind( object );
 
@@ -374,11 +432,23 @@ class ParametersGroup {
 
 		editor.name = ( name ) => {
 
-			editor.domElement.childNodes[ 0 ].textContent = name;
+			const buttonNode = editor.domElement.childNodes[ 0 ];
+
+			if ( buttonNode.childNodes.length > 0 && buttonNode.firstChild.nodeType === 3 /* Node.TEXT_NODE */ ) {
+
+				buttonNode.firstChild.textContent = name;
+
+			} else {
+
+				buttonNode.insertBefore( document.createTextNode( name ), buttonNode.firstChild );
+
+			}
 
 			return editor;
 
 		};
+
+		this._addInfo( editor, editor.domElement.childNodes[ 0 ] );
 
 		this._registerParameter( object, property, editor, subItem );
 

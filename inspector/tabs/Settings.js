@@ -1,12 +1,16 @@
 import { Parameters } from './Parameters.js';
 import { WebGPURenderer, WebGLBackend, Node } from 'three/webgpu';
-import { getItem, setItem } from '../Inspector.js';
-// @reviser lijuhong 直接引入TSLGraphEditor
+import { getItem, setItem } from '../Storage.js';
+// @reviser lijuhong 直接引入扩展类，避免打包后因找不到文件导致的加载错误
+import { ColorGrading } from '../extensions/color-grading/ColorGrading.js';
 import TSLGraphEditor from '../extensions/tsl-graph/TSLGraphEditor.js';
 
-const _EXTENSIONS_PATH = '../extensions/extensions.json';
-// @reviser lijuhong 直接定义扩展列表，不再使用_EXTENSIONS_PATH动态加载
-const _EXTENSIONS = [
+// @reviser lijuhong 直接定义扩展列表，不再使用url动态加载
+const _extensions = [
+	{
+		name: 'Color Grading',
+		class: ColorGrading
+	},
 	{
 		name: 'TSL Graph',
 		class: TSLGraphEditor
@@ -52,7 +56,8 @@ function _loadState() {
 	_state = {
 		forceWebGL: settings.forceWebGL !== undefined ? settings.forceWebGL : false,
 		captureStackTrace: settings.captureStackTrace !== undefined ? settings.captureStackTrace : false,
-		activeExtensions: settings.activeExtensions !== undefined ? settings.activeExtensions : {}
+		activeExtensions: settings.activeExtensions !== undefined ? settings.activeExtensions : {},
+		storage: settings.storage !== undefined ? settings.storage : 'url'
 	};
 
 	if ( _state.forceWebGL ) {
@@ -76,7 +81,8 @@ function _saveState() {
 	setItem( 'settings', {
 		forceWebGL: _state.forceWebGL,
 		captureStackTrace: _state.captureStackTrace,
-		activeExtensions: _state.activeExtensions
+		activeExtensions: _state.activeExtensions,
+		storage: _state.storage
 	} );
 
 }
@@ -117,11 +123,50 @@ class Settings extends Parameters {
 
 		} );
 
+		// Render Modes
+
+		const modesGroup = this.createGroup( 'Render Modes' );
+
+		modesGroup.add( { overdraw: false }, 'overdraw' ).name( 'Overdraw' ).onChange( ( enable ) => {
+
+			this.inspector.overdraw = enable;
+
+		} ).info( 'Shows how many times each pixel is shaded.' );
+
 	}
 
 	init() {
 
 		const extensionsGroup = this.createGroup( 'Extensions' );
+
+		const storageGroup = this.createGroup( 'Storage' );
+
+		const currentState = _loadState();
+
+		storageGroup.add( currentState, 'storage', { 'URL Session': 'url', 'Keep across Origin': 'origin' } )
+			.name( 'Save Settings' )
+			.onChange( () => {
+
+				_saveState();
+
+			} ).info( `
+Defines how the **Inspector** preferences and states are stored in the browser.
+
+**URL Session**
+Saves state based on the exact URL. It will reset the settings whenever the URL changes.
+
+**Keep across Origin**
+Shares the same state across any page within the current origin.` );
+
+		storageGroup.add( {
+			clear: () => {
+
+				localStorage.removeItem( 'threejs-inspector' );
+
+				location.reload();
+
+			}
+		}, 'clear' ).name( 'Clear Settings' );
 
 		this._getExtensions().then( extensions => {
 
@@ -142,8 +187,7 @@ class Settings extends Parameters {
 					if ( value ) {
 
 						_state.activeExtensions[ extension.name ] = {
-							name: extension.name,
-							// url: extension.url // @reviser lijuhong 直接使用class，不再使用url动态加载
+							name: extension.name
 						};
 
 					} else {
@@ -239,12 +283,6 @@ class Settings extends Parameters {
 
 		extension.active = true;
 
-		// const extUrl = new URL( extension.url, new URL( _EXTENSIONS_PATH, import.meta.url ) ).href;
-
-		// const module = await import( extUrl );
-
-		// const keys = Object.keys( module );
-		// const ExtensionClass = module[ keys[ 0 ] ];
 		const ExtensionClass = extension.class; // @reviser lijuhong 直接使用class，不再使用url动态加载
 		const extensionTab = new ExtensionClass();
 
@@ -261,13 +299,8 @@ class Settings extends Parameters {
 
 	async _getExtensions() {
 
-		// const url = new URL( _EXTENSIONS_PATH, import.meta.url );
+		return _extensions;
 
-		// const extensions = await fetch( url ).then( res => res.json() );
-
-		// return extensions;
-		// @reviser lijuhong 直接返回定义的扩展列表，不再使用fetch动态加载
-		return _EXTENSIONS;
 	}
 
 }

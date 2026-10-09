@@ -1,5 +1,6 @@
 
-import { InspectorBase, TimestampQuery, warnOnce } from 'three/webgpu';
+import { InspectorBase, TimestampQuery, warnOnce, RendererUtils, MeshBasicNodeMaterial, AdditiveBlending, NoToneMapping, LinearSRGBColorSpace } from 'three/webgpu';
+import { vec3 } from 'three/tsl';
 
 class ObjectStats {
 
@@ -56,7 +57,9 @@ class ComputeStats extends ObjectStats {
 
 	constructor( uid, computeNode ) {
 
-		super( uid, computeNode.name );
+		const name = computeNode.name || ( computeNode.isComputeNode ? 'Compute' : 'Compute Group' );
+
+		super( uid, name );
 
 		this.computeNode = computeNode;
 
@@ -73,7 +76,9 @@ export class RendererInspector extends InspectorBase {
 		super();
 
 		this.currentFrame = null;
+		this.currentContext = null;
 		this.currentRender = null;
+		this.currentCompute = null;
 		this.currentNodes = null;
 		this.lastFrame = null;
 
@@ -83,6 +88,10 @@ export class RendererInspector extends InspectorBase {
 
 		this._lastFinishTime = 0;
 		this._resolveTimestampPromise = null;
+		this._rAFId = null;
+
+		this.overdraw = false;
+		this._overdrawMaterial = null;
 
 		this.isRendererInspector = true;
 
@@ -90,19 +99,25 @@ export class RendererInspector extends InspectorBase {
 
 	getParent() {
 
-		return this.currentRender || this.getFrame();
+		return this.currentContext || this.getFrame();
 
 	}
 
 	begin() {
 
+		super.begin();
+
 		this.currentFrame = this._createFrame();
-		this.currentRender = this.currentFrame;
+		this.currentContext = this.currentFrame;
+		this.currentRender = null;
+		this.currentCompute = null;
 		this.currentNodes = [];
 
 	}
 
 	finish() {
+
+		super.finish();
 
 		const now = performance.now();
 
@@ -117,10 +132,56 @@ export class RendererInspector extends InspectorBase {
 		this.lastFrame = frame;
 
 		this.currentFrame = null;
+		this.currentContext = null;
 		this.currentRender = null;
+		this.currentCompute = null;
 		this.currentNodes = null;
 
 		this._lastFinishTime = now;
+
+		if ( this.overdraw === true ) {
+
+			this._renderOverdraw();
+
+		}
+
+	}
+
+	_renderOverdraw() {
+
+		const primaryPass = this.getPrimaryPass();
+
+		if ( primaryPass === null ) return;
+
+		const renderer = this.getRenderer();
+
+		if ( this._overdrawMaterial === null ) {
+
+			// additive constant, so each pixel sums the depth-passing fragments it shaded
+
+			this._overdrawMaterial = new MeshBasicNodeMaterial( {
+				colorNode: vec3( 0.25 ),
+				blending: AdditiveBlending,
+				depthTest: true,
+				depthWrite: true
+			} );
+
+		}
+
+		const { scene, camera } = primaryPass;
+
+		// raw render against black with no tone mapping, so the count stays linear
+
+		const state = RendererUtils.resetRendererAndSceneState( renderer, scene );
+
+		renderer.toneMapping = NoToneMapping;
+		renderer.outputColorSpace = LinearSRGBColorSpace;
+
+		scene.overrideMaterial = this._overdrawMaterial;
+
+		renderer.render( scene, camera );
+
+		RendererUtils.restoreRendererAndSceneState( renderer, scene, state );
 
 	}
 
@@ -161,6 +222,29 @@ export class RendererInspector extends InspectorBase {
 
 	}
 
+	getPrimaryPass() {
+
+		const frame = this.getFrame();
+
+		// first scene render of the frame; nested shadow / RTT passes come after
+
+		let primary = null;
+
+		for ( const render of frame.renders ) {
+
+			if ( render.scene.isScene === true ) {
+
+				primary = render;
+				break;
+
+			}
+
+		}
+
+		return primary;
+
+	}
+
 	getFrame() {
 
 		return this.currentFrame || this.lastFrame;
@@ -187,91 +271,166 @@ export class RendererInspector extends InspectorBase {
 
 		this._resolveTimestampPromise = new Promise( ( resolve ) => {
 
-			requestAnimationFrame( async () => {
+			this._rAFId = requestAnimationFrame( async () => {
+
+				this._rAFId = null;
 
 				const renderer = this.getRenderer();
 
-				await renderer.resolveTimestampsAsync( TimestampQuery.COMPUTE );
-				await renderer.resolveTimestampsAsync( TimestampQuery.RENDER );
+				if ( renderer === null ) {
 
-				const computeFrames = renderer.backend.getTimestampFrames( TimestampQuery.COMPUTE );
-				const renderFrames = renderer.backend.getTimestampFrames( TimestampQuery.RENDER );
+					this._resolveTimestampPromise = null;
+					resolve();
+					return;
 
-				const frameIds = [ ...new Set( [ ...computeFrames, ...renderFrames ] ) ];
+				}
 
-				for ( const frameId of frameIds ) {
+				if ( renderer.backend.hasTimestamp ) {
 
-					const frame = this.getFrameById( frameId );
+					// 兼容 three 0.184 (hasTimestamp) 与 0.186+ (hasTimestampQuery)
+					const hasTimestampQuery = renderer.backend.hasTimestampQuery ?
+						( uid ) => renderer.backend.hasTimestampQuery( uid ) :
+						( uid ) => renderer.backend.hasTimestamp( uid );
 
-					if ( frame !== null ) {
+					await renderer.resolveTimestampsAsync( TimestampQuery.COMPUTE );
+					await renderer.resolveTimestampsAsync( TimestampQuery.RENDER );
 
-						// resolve compute timestamps
+					if ( renderer !== this.getRenderer() ) {
 
-						if ( frame.resolvedCompute === false ) {
+						this._resolveTimestampPromise = null;
+						resolve();
+						return;
 
-							if ( frame.computes.length > 0 ) {
+					}
 
-								if ( computeFrames.includes( frameId ) ) {
+					const computeFrames = renderer.backend.getTimestampFrames( TimestampQuery.COMPUTE );
+					const renderFrames = renderer.backend.getTimestampFrames( TimestampQuery.RENDER );
 
-									for ( const stats of frame.computes ) {
+					const frameIds = [ ...new Set( [ ...computeFrames, ...renderFrames ] ) ];
 
-										if ( renderer.backend.hasTimestamp( stats.uid ) ) {
+					for ( const frameId of frameIds ) {
 
-											stats.gpu = renderer.backend.getTimestamp( stats.uid );
+						const frame = this.getFrameById( frameId );
 
-										} else {
+						if ( frame !== null ) {
 
-											stats.gpu = 0;
-											stats.gpuNotAvailable = true;
+							// resolve compute timestamps
+
+							if ( frame.resolvedCompute === false ) {
+
+								if ( frame.computes.length > 0 ) {
+
+									if ( computeFrames.includes( frameId ) ) {
+
+										for ( const stats of frame.computes ) {
+
+											if ( hasTimestampQuery( stats.uid ) ) {
+
+												stats.gpu = renderer.backend.getTimestamp( stats.uid );
+
+											} else {
+
+												stats.gpu = 0;
+												stats.gpuNotAvailable = true;
+
+											}
 
 										}
 
+										frame.resolvedCompute = true;
+
 									}
+
+								} else {
 
 									frame.resolvedCompute = true;
 
 								}
 
-							} else {
-
-								frame.resolvedCompute = true;
-
 							}
 
-						}
+							// resolve render timestamps
 
-						// resolve render timestamps
+							if ( frame.resolvedRender === false ) {
 
-						if ( frame.resolvedRender === false ) {
+								if ( frame.renders.length > 0 ) {
 
-							if ( frame.renders.length > 0 ) {
+									if ( renderFrames.includes( frameId ) ) {
 
-								if ( renderFrames.includes( frameId ) ) {
+										for ( const stats of frame.renders ) {
 
-									for ( const stats of frame.renders ) {
+											if ( hasTimestampQuery( stats.uid ) ) {
 
-										if ( renderer.backend.hasTimestamp( stats.uid ) ) {
+												stats.gpu = renderer.backend.getTimestamp( stats.uid );
 
-											stats.gpu = renderer.backend.getTimestamp( stats.uid );
+											} else {
 
-										} else {
+												stats.gpu = 0;
+												stats.gpuNotAvailable = true;
 
-											stats.gpu = 0;
-											stats.gpuNotAvailable = true;
+											}
 
 										}
 
+										frame.resolvedRender = true;
+
 									}
+
+								} else {
 
 									frame.resolvedRender = true;
 
 								}
 
-							} else {
+							}
 
-								frame.resolvedRender = true;
+							if ( frame.resolvedCompute === true && frame.resolvedRender === true ) {
+
+								this.resolveFrame( frame );
 
 							}
+
+						}
+
+					}
+
+				} else {
+
+					for ( const frame of this.frames ) {
+
+						if ( frame.resolvedCompute === true && frame.resolvedRender === true ) {
+
+							continue;
+
+						}
+
+						const previousFrame = this.getFrameById( frame.frameId - 1 );
+
+						if ( previousFrame === null ) continue;
+
+						if ( frame.resolvedCompute === false ) {
+
+							for ( const stats of frame.computes ) {
+
+								stats.gpu = 0;
+								stats.gpuNotAvailable = true;
+
+							}
+
+							frame.resolvedCompute = true;
+
+						}
+
+						if ( frame.resolvedRender === false ) {
+
+							for ( const stats of frame.renders ) {
+
+								stats.gpu = 0;
+								stats.gpuNotAvailable = true;
+
+							}
+
+							frame.resolvedRender = true;
 
 						}
 
@@ -330,6 +489,8 @@ export class RendererInspector extends InspectorBase {
 
 	inspect( node ) {
 
+		if ( this.enabled === false ) return;
+
 		const currentNodes = this.currentNodes;
 
 		if ( currentNodes !== null ) {
@@ -352,21 +513,13 @@ export class RendererInspector extends InspectorBase {
 
 		const currentCompute = new ComputeStats( uid, computeNode );
 		currentCompute.timestamp = performance.now();
-		currentCompute.parent = this.currentCompute || this.getParent();
+		currentCompute.parent = this.getParent();
 
 		frame.computes.push( currentCompute );
-
-		if ( this.currentRender !== null ) {
-
-			this.currentRender.children.push( currentCompute );
-
-		} else {
-
-			frame.children.push( currentCompute );
-
-		}
+		currentCompute.parent.children.push( currentCompute );
 
 		this.currentCompute = currentCompute;
+		this.currentContext = currentCompute;
 
 	}
 
@@ -379,7 +532,8 @@ export class RendererInspector extends InspectorBase {
 		const currentCompute = this.currentCompute;
 		currentCompute.cpu = performance.now() - currentCompute.timestamp;
 
-		this.currentCompute = currentCompute.parent.isComputeStats ? currentCompute.parent : null;
+		this.currentContext = currentCompute.parent;
+		this.currentCompute = currentCompute.parent && currentCompute.parent.isComputeStats ? currentCompute.parent : null;
 
 	}
 
@@ -394,18 +548,10 @@ export class RendererInspector extends InspectorBase {
 		currentRender.parent = this.getParent();
 
 		frame.renders.push( currentRender );
-
-		if ( this.currentRender !== null ) {
-
-			this.currentRender.children.push( currentRender );
-
-		} else {
-
-			frame.children.push( currentRender );
-
-		}
+		currentRender.parent.children.push( currentRender );
 
 		this.currentRender = currentRender;
+		this.currentContext = currentRender;
 
 	}
 
@@ -418,7 +564,30 @@ export class RendererInspector extends InspectorBase {
 		const currentRender = this.currentRender;
 		currentRender.cpu = performance.now() - currentRender.timestamp;
 
-		this.currentRender = currentRender.parent;
+		this.currentContext = currentRender.parent;
+		this.currentRender = currentRender.parent && currentRender.parent.isRenderStats ? currentRender.parent : null;
+
+	}
+
+	dispose() {
+
+		if ( this._rAFId !== null ) {
+
+			cancelAnimationFrame( this._rAFId );
+			this._rAFId = null;
+
+		}
+
+		this._resolveTimestampPromise = null;
+
+		if ( this._overdrawMaterial !== null ) {
+
+			this._overdrawMaterial.dispose();
+			this._overdrawMaterial = null;
+
+		}
+
+		super.dispose();
 
 	}
 

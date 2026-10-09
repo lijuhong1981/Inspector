@@ -10,16 +10,20 @@ class Value extends EventDispatcher {
 		this.domElement.className = 'param-control';
 
 		this._onChangeFunction = null;
+		this._changeTimeout = null;
+		this._debounceTime = 0;
 
 		this.addEventListener( 'change', ( e ) => {
 
 			// defer to avoid issues when changing multiple values in the same call stack
 
-			requestAnimationFrame( () => {
+			clearTimeout( this._changeTimeout );
+
+			this._changeTimeout = setTimeout( () => {
 
 				if ( this._onChangeFunction ) this._onChangeFunction( e.value );
 
-			} );
+			}, this._debounceTime );
 
 		} );
 
@@ -53,6 +57,30 @@ class Value extends EventDispatcher {
 
 	}
 
+	debounce( time ) {
+
+		this._debounceTime = time;
+
+		return this;
+
+	}
+
+	show() {
+
+		this.dispatchEvent( { type: 'show' } );
+
+		return this;
+
+	}
+
+	hide() {
+
+		this.dispatchEvent( { type: 'hide' } );
+
+		return this;
+
+	}
+
 }
 
 class ValueNumber extends Value {
@@ -63,13 +91,10 @@ class ValueNumber extends Value {
 
 		this.input = document.createElement( 'input' );
 		this.input.type = 'number';
-		// @reviser lijuhong 注释掉直接设置step、value值的代码，后面调用链式方法设置step、value值
-		// this.input.value = value;
-		// this.input.step = step;
 		this.input.min = min;
 		this.input.max = max;
 		// @reviser lijuhong 链式设置step、value值
-		this.step(step).setValue( value );
+		this.step( step ).setValue( value );
 		this.input.addEventListener( 'change', this._onChangeValue.bind( this ) );
 		this.domElement.appendChild( this.input );
 		this.addDragHandler();
@@ -105,7 +130,9 @@ class ValueNumber extends Value {
 		let isDragging = false;
 		let startY, startValue;
 
-		this.input.addEventListener( 'mousedown', ( e ) => {
+		this.input.style.touchAction = 'none';
+
+		this.input.addEventListener( 'pointerdown', ( e ) => {
 
 			isDragging = true;
 			startY = e.clientY;
@@ -114,7 +141,7 @@ class ValueNumber extends Value {
 
 		} );
 
-		document.addEventListener( 'mousemove', ( e ) => {
+		document.addEventListener( 'pointermove', ( e ) => {
 
 			if ( isDragging ) {
 
@@ -123,9 +150,9 @@ class ValueNumber extends Value {
 				const min = parseFloat( this.input.min );
 				const max = parseFloat( this.input.max );
 
-				let stepSize = step;
 				// @reviser lijuhong stepSize计算有问题，注释掉该代码
-				// if ( !isNaN( max ) && isFinite( min ) ) {
+				const stepSize = step;
+				// if ( ! isNaN( max ) && isFinite( min ) ) {
 
 				// 	stepSize = ( max - min ) / 100;
 
@@ -135,10 +162,9 @@ class ValueNumber extends Value {
 
 				let newValue = startValue + change;
 				newValue = Math.max( min, Math.min( newValue, max ) );
-				// @reviser lijuhong 注释该行代码，将precision计算放到step方法中进行
 
-				// const precision = ( String( step ).split( '.' )[ 1 ] || [] ).length;
-				this.input.value = newValue.toFixed( this.precision ); // @reviser lijuhong 直接引用precision属性
+				// @reviser lijuhong 直接引用precision属性
+				this.input.value = newValue.toFixed( this.precision );
 
 				this.input.dispatchEvent( new Event( 'input' ) );
 
@@ -148,7 +174,7 @@ class ValueNumber extends Value {
 
 		} );
 
-		document.addEventListener( 'mouseup', () => {
+		document.addEventListener( 'pointerup', () => {
 
 			if ( isDragging ) {
 
@@ -162,6 +188,7 @@ class ValueNumber extends Value {
 	}
 
 	setValue( val ) {
+
 		// @reviser lijuhong 根据精度设置输入框的value
 		this.input.value = val.toFixed( this.precision );
 
@@ -176,18 +203,26 @@ class ValueNumber extends Value {
 	}
 
 	// @reviser lijuhong 添加 min、max、step方法，方便链式调用设置数值范围和步长
-	min( value = -Infinity ) {
+	min( value = - Infinity ) {
+
 		this.input.min = value;
 		return this;
+
 	}
+
 	max( value = Infinity ) {
+
 		this.input.max = value;
 		return this;
+
 	}
+
 	step( value = 0.1 ) {
+
 		this.input.step = value;
-		this.precision = (String(value).split('.')[1] || []).length;
+		this.precision = ( String( value ).split( '.' )[ 1 ] || [] ).length;
 		return this;
+
 	}
 
 }
@@ -247,7 +282,7 @@ class ValueSlider extends Value {
 		this.slider.type = 'range';
 		this.slider.min = min;
 		this.slider.max = max;
-		// this.slider.step = step; // @reviser lijuhong 注释该行代码，后面调用step方法设置step值
+		// this.slider.step = step; // @reviser lijuhong 后面调用step方法设置step值
 
 		const numberValue = new ValueNumber( { value, min, max, step } );
 		// @reviser lijuhong 添加numberValue属性
@@ -256,7 +291,6 @@ class ValueSlider extends Value {
 		this.numberInput.style.flexBasis = '80px';
 		this.numberInput.style.flexShrink = '0';
 
-		// this.slider.value = value; // @reviser lijuhong 注释该行代码，后面调用setValue方法设置value值
 		// @reviser lijuhong 链式设置step、value值
 		this.step( step ).setValue( value );
 
@@ -281,6 +315,7 @@ class ValueSlider extends Value {
 	}
 
 	setValue( val ) {
+
 		// @reviser lijuhong 根据精度设置输入框的value
 		val = val.toFixed( this.precision );
 		this.slider.value = val;
@@ -297,28 +332,37 @@ class ValueSlider extends Value {
 	}
 
 	step( value ) {
+
 		// @reviser lijuhong 调用numberValue.step方法设置step值
 		this.numberValue.step( value );
 		this.slider.step = value;
-		// this.numberInput.step = value;
 
 		return this;
 
 	}
+
 	// @reviser lijuhong 添加precision属性，获取数值精度
 	get precision() {
+
 		return this.numberValue.precision;
+
 	}
+
 	// @reviser lijuhong 添加min、max方法，方便链式调用设置数值范围和步长
-	min( value = -Infinity ) {
+	min( value = - Infinity ) {
+
 		this.slider.min = value;
 		this.numberInput.min = value;
 		return this;
+
 	}
+
 	max( value = Infinity ) {
+
 		this.slider.max = value;
 		this.numberInput.max = value;
 		return this;
+
 	}
 
 }
@@ -367,6 +411,32 @@ class ValueSelect extends Value {
 
 		this.options = options;
 		this.select = select;
+
+	}
+
+	setValue( val ) {
+
+		if ( Array.isArray( this.options ) ) {
+
+			this.select.value = val;
+
+		} else {
+
+			const entry = Object.entries( this.options ).find( ( [ , v ] ) => v === val );
+
+			if ( entry ) {
+
+				this.select.value = entry[ 0 ];
+
+			} else {
+
+				this.select.value = val;
+
+			}
+
+		}
+
+		return super.setValue( val );
 
 	}
 
@@ -423,9 +493,29 @@ class ValueColor extends Value {
 
 	}
 
+	setValue( val ) {
+
+		const colorHex = this._getColorHex( val );
+
+		this.colorInput.value = colorHex;
+
+		if ( this._value && this._value.isColor ) {
+
+			this._value.setHex( parseInt( colorHex.slice( 1 ), 16 ) );
+
+		} else {
+
+			this._value = val;
+
+		}
+
+		return super.setValue( val );
+
+	}
+
 	_getColorHex( color ) {
 
-		if ( color.isColor ) {
+		if ( color && color.isColor ) {
 
 			color = color.getHex();
 
@@ -433,9 +523,9 @@ class ValueColor extends Value {
 
 		if ( typeof color === 'number' ) {
 
-			color = `#${ color.toString( 16 ) }`;
+			color = '#' + color.toString( 16 ).padStart( 6, '0' );
 
-		} else if ( color[ 0 ] !== '#' ) {
+		} else if ( typeof color === 'string' && color[ 0 ] !== '#' ) {
 
 			color = '#' + color;
 

@@ -4,15 +4,19 @@
 
 ## 修改点
 
-1、Setting.js的Extensions由加载json文件改为直接import TSLGraphEditor类，以避免打包后因找不到json文件导致的加载错误；
+> 本工程已同步 three.js `dev` 分支最新版 Inspector（含 Color Grading 扩展、Overdraw 渲染、console 未读徽章等），并在其上保留/新增以下定制：
 
-2、ParametersGroup类新增open、remove、removeFolder方法，addNumber方法添加step参数，在add方法添加类型为number的值时增加对params[0]和params[1]参数是否为undefined的判断，修复listen时未对数值类型属性精度做判断的问题，修复addButton传入的函数this指向错误的问题；
+1、扩展加载：`Settings.js` 由官方动态 `import(url)` 改为静态 `import` 扩展类（Color Grading、TSL Graph），避免打包后因找不到文件导致的加载错误；
 
-3、Item类新增open函数；
+2、导入路径：官方代码的 `three/addons/inspector/...` 引用统一改为相对路径，适配 npm 包独立发布；
 
-4、ValueNumber类新增min、max、step方法，并修复鼠标上下滑动时stepSize计算错误的问题；
+3、`ParametersGroup`：新增 `open`、`remove`、`removeFolder` 方法，`addNumber` 增加 `step` 参数，`add` 对 number 类型增加 `params[0]`/`params[1]` 非 undefined 判断，修复 `listen` 数值精度判断、`addButton` 的 `this` 指向问题；
 
-5、ValueSlider类新增min、max方法；
+4、`Item`：新增 `open` 方法；
+
+5、`ValueNumber`：新增 `min`、`max`、`step` 方法，修复鼠标上下滑动时 `stepSize` 计算错误的问题；`ValueSlider`：新增 `min`、`max` 方法；
+
+6、three 版本兼容：自动适配 three 0.181～0.186+ 的差异——时间戳查询 `hasTimestampQuery`/`hasTimestamp` 自动探测、`info.memory` 新增字段（如 `uniformBuffers`）缺失时兜底为 0（0.181 以下无 WebGPU Inspector 基础设施，无法兼容）。
 
 ## 安装
 
@@ -67,3 +71,14 @@ const zItem = folder.add(position, 'z').step(0.1);
 // gui.removeFolder(folder); //移除folder
 ...
 ```
+
+## 本地测试
+
+```bash
+node server.js          # 默认 8000 端口，可传端口号覆盖
+# 浏览器打开 http://localhost:8000/test/
+```
+
+测试页（[test/](test/)）含一个 WebGPU 场景（NodeMaterial 立方体/球体 + 光照）与参数面板，覆盖布尔/数字/滑块/颜色/下拉/按钮/folder，以及 `step`/`min`/`max`/`remove`/`removeFolder`/`open`/`close` 等定制 API。
+
+> 需使用支持 WebGPU 的浏览器（Chrome 113+ / Edge，开启硬件加速）；TSL Graph / Color Grading 扩展需在 Settings Tab 勾选启用（TSL Graph 依赖联网加载 `tsl-graph.xyz`）。

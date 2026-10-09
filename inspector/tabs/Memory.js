@@ -70,6 +70,9 @@ class Memory extends Tab {
 		this.textures = new Item( 'Textures', createValueSpan(), createValueSpan() );
 		this.memoryStats.add( this.textures );
 
+		this.uniformBuffers = new Item( 'Uniform Buffers', createValueSpan(), createValueSpan() );
+		this.memoryStats.add( this.uniformBuffers );
+
 		this.graph = graph;
 
 	}
@@ -77,7 +80,6 @@ class Memory extends Tab {
 	updateGraph( inspector ) {
 
 		const renderer = inspector.getRenderer();
-		if ( ! renderer ) return;
 
 		const memory = renderer.info.memory;
 
@@ -92,14 +94,18 @@ class Memory extends Tab {
 	updateText( inspector ) {
 
 		const renderer = inspector.getRenderer();
-		if ( ! renderer ) return;
 
-		const memory = renderer.info.memory;
+		// 兼容 three 0.184：uniformBuffers/uniformBuffersSize 等字段在 0.186 才引入
+		const memory = Object.assign( {
+			uniformBuffers: 0,
+			uniformBuffersSize: 0
+		}, renderer.info.memory );
 
 		setText( this.memoryStats.data[ 2 ], formatBytes( memory.total ) );
 
 		setText( this.attributes.data[ 1 ], memory.attributes.toString() );
 		setText( this.attributes.data[ 2 ], formatBytes( memory.attributesSize ) );
+
 		setText( this.geometries.data[ 1 ], memory.geometries.toString() );
 
 		setText( this.indexAttributes.data[ 1 ], memory.indexAttributes.toString() );
@@ -118,8 +124,12 @@ class Memory extends Tab {
 
 		setText( this.storageAttributes.data[ 1 ], memory.storageAttributes.toString() );
 		setText( this.storageAttributes.data[ 2 ], formatBytes( memory.storageAttributesSize ) );
+
 		setText( this.textures.data[ 1 ], memory.textures.toString() );
 		setText( this.textures.data[ 2 ], formatBytes( memory.texturesSize ) );
+
+		setText( this.uniformBuffers.data[ 1 ], memory.uniformBuffers.toString() );
+		setText( this.uniformBuffers.data[ 2 ], formatBytes( memory.uniformBuffersSize ) );
 
 	}
 
