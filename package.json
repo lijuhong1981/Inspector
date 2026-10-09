@@ -19,7 +19,13 @@
   "keywords": [
     "three",
     "threejs",
-    "inspector"
+    "webgpu",
+    "webgl",
+    "inspector",
+    "debugger",
+    "profiler",
+    "devtools",
+    "gui"
   ],
   "author": "lijuhong1981",
   "license": "ISC",

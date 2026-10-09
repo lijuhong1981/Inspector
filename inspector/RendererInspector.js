@@ -1,6 +1,22 @@
 
 import { InspectorBase, TimestampQuery, warnOnce, RendererUtils, MeshBasicNodeMaterial, AdditiveBlending, NoToneMapping, LinearSRGBColorSpace } from 'three/webgpu';
 import { vec3 } from 'three/tsl';
+import { EventDispatcher } from 'three';
+
+// 兼容 three 0.181～0.183：InspectorBase 从 0.184 才继承 EventDispatcher，此处手动混入
+if ( typeof InspectorBase.prototype.dispatchEvent !== 'function' ) {
+
+	for ( const method of [ 'addEventListener', 'hasEventListener', 'removeEventListener', 'dispatchEvent' ] ) {
+
+		if ( typeof InspectorBase.prototype[ method ] !== 'function' ) {
+
+			InspectorBase.prototype[ method ] = EventDispatcher.prototype[ method ];
+
+		}
+
+	}
+
+}
 
 class ObjectStats {
 
@@ -74,6 +90,9 @@ export class RendererInspector extends InspectorBase {
 	constructor() {
 
 		super();
+
+		// 兼容 three 0.181～0.183：InspectorBase 不初始化 _listeners，此处补上
+		if ( this._listeners === undefined ) this._listeners = {};
 
 		this.currentFrame = null;
 		this.currentContext = null;

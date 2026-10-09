@@ -16,7 +16,7 @@
 
 5、`ValueNumber`：新增 `min`、`max`、`step` 方法，修复鼠标上下滑动时 `stepSize` 计算错误的问题；`ValueSlider`：新增 `min`、`max` 方法；
 
-6、three 版本兼容：自动适配 three 0.181～0.186+ 的差异——时间戳查询 `hasTimestampQuery`/`hasTimestamp` 自动探测、`info.memory` 新增字段（如 `uniformBuffers`）缺失时兜底为 0（0.181 以下无 WebGPU Inspector 基础设施，无法兼容）。
+6、three 版本兼容：支持 three 0.181～0.186+，自动适配以下版本差异——时间戳查询 `hasTimestampQuery`（0.186+）/`hasTimestamp`（0.181～0.185）自动探测、`info.memory` 字段全量兜底、`RenderPipeline`（0.183+）与 `WebGLBackend`（0.184+）导出缺失降级、`InspectorBase` 继承 `EventDispatcher`（0.184+）缺失时自动混入（0.181 以下无 WebGPU Inspector 基础设施，无法兼容）。
 
 ## 安装
 
@@ -79,6 +79,6 @@ node server.js          # 默认 8000 端口，可传端口号覆盖
 # 浏览器打开 http://localhost:8000/test/
 ```
 
-测试页（[test/](test/)）含一个 WebGPU 场景（NodeMaterial 立方体/球体 + 光照）与参数面板，覆盖布尔/数字/滑块/颜色/下拉/按钮/folder，以及 `step`/`min`/`max`/`remove`/`removeFolder`/`open`/`close` 等定制 API。
+测试页（[test/](test/)）含一个 WebGPU 场景（NodeMaterial 立方体/球体 + 光照）与参数面板，覆盖布尔/数字/滑块/颜色/下拉/按钮/folder，以及 `step`/`min`/`max`/`remove`/`removeFolder`/`open`/`close` 等定制 API；左上角下拉框可切换 three 版本（0.181.0～0.186.1，走 unpkg CDN），用于验证跨版本兼容。
 
 > 需使用支持 WebGPU 的浏览器（Chrome 113+ / Edge，开启硬件加速）；TSL Graph / Color Grading 扩展需在 Settings Tab 勾选启用（TSL Graph 依赖联网加载 `tsl-graph.xyz`）。

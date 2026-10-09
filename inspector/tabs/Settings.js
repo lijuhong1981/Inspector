@@ -1,9 +1,12 @@
 import { Parameters } from './Parameters.js';
-import { WebGPURenderer, WebGLBackend, Node } from 'three/webgpu';
+import * as THREEWebGPU from 'three/webgpu';
 import { getItem, setItem } from '../Storage.js';
 // @reviser lijuhong 直接引入扩展类，避免打包后因找不到文件导致的加载错误
 import { ColorGrading } from '../extensions/color-grading/ColorGrading.js';
 import TSLGraphEditor from '../extensions/tsl-graph/TSLGraphEditor.js';
+
+// 兼容 three 0.181～0.183：WebGLBackend 从 0.184 才从 three/webgpu 导出
+const { WebGPURenderer, WebGLBackend, Node } = THREEWebGPU;
 
 // @reviser lijuhong 直接定义扩展列表，不再使用url动态加载
 const _extensions = [
@@ -22,6 +25,9 @@ const _init = WebGPURenderer.prototype.init;
 function forceWebGL( enable ) {
 
 	if ( enable ) {
+
+		// 兼容 three 0.181～0.183：WebGLBackend 缺失时禁用强制 WebGL
+		if ( ! WebGLBackend ) return;
 
 		WebGPURenderer.prototype.init = async function () {
 

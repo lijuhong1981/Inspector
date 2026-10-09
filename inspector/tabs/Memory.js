@@ -4,6 +4,30 @@ import { Graph } from '../ui/Graph.js';
 import { Item } from '../ui/Item.js';
 import { createValueSpan, setText, formatBytes } from '../ui/utils.js';
 
+// 兼容不同 three 版本：info.memory 字段是逐步扩展的（0.181 仅有 geometries/textures，
+// 0.184 补齐大部分，0.186 才加入 uniformBuffers），缺失字段兜底为 0
+const _memoryDefaults = {
+	geometries: 0,
+	textures: 0,
+	attributes: 0,
+	indexAttributes: 0,
+	storageAttributes: 0,
+	indirectStorageAttributes: 0,
+	readbackBuffers: 0,
+	programs: 0,
+	renderTargets: 0,
+	total: 0,
+	texturesSize: 0,
+	attributesSize: 0,
+	indexAttributesSize: 0,
+	storageAttributesSize: 0,
+	indirectStorageAttributesSize: 0,
+	readbackBuffersSize: 0,
+	programsSize: 0,
+	uniformBuffers: 0,
+	uniformBuffersSize: 0
+};
+
 class Memory extends Tab {
 
 	constructor( options = {} ) {
@@ -81,7 +105,7 @@ class Memory extends Tab {
 
 		const renderer = inspector.getRenderer();
 
-		const memory = renderer.info.memory;
+		const memory = Object.assign( {}, _memoryDefaults, renderer.info.memory );
 
 		this.graph.addPoint( 'total', memory.total );
 
@@ -95,11 +119,7 @@ class Memory extends Tab {
 
 		const renderer = inspector.getRenderer();
 
-		// 兼容 three 0.184：uniformBuffers/uniformBuffersSize 等字段在 0.186 才引入
-		const memory = Object.assign( {
-			uniformBuffers: 0,
-			uniformBuffersSize: 0
-		}, renderer.info.memory );
+		const memory = Object.assign( {}, _memoryDefaults, renderer.info.memory );
 
 		setText( this.memoryStats.data[ 2 ], formatBytes( memory.total ) );
 

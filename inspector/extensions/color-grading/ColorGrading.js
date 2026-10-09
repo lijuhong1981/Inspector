@@ -6,14 +6,17 @@ import {
 	exportLUTCanvas,
 	parseCubeFormat
 } from './LUTMath.js';
-import {
+import * as THREEWebGPU from 'three/webgpu';
+
+// 兼容 three 0.181/0.182：RenderPipeline 从 0.183 才从 three/webgpu 导出，此处可能为 undefined
+const {
 	Data3DTexture,
 	LinearFilter,
 	RGBAFormat,
 	FloatType,
 	NoToneMapping,
 	RenderPipeline
-} from 'three/webgpu';
+} = THREEWebGPU;
 import { pass, texture3D, renderOutput } from 'three/tsl';
 import { lut3D } from './Lut3DNode.js';
 
@@ -35,23 +38,28 @@ import { OutputModule } from './modules/OutputModule.js';
 
 const _rendererPipelines = new WeakMap();
 
-const _origRender = RenderPipeline.prototype.render;
+// 兼容 three 0.181/0.182：RenderPipeline 缺失时跳过 pipeline hook
+if ( RenderPipeline ) {
 
-if ( _origRender && ! _origRender._lut3dHooked ) {
+	const _origRender = RenderPipeline.prototype.render;
 
-	RenderPipeline.prototype.render = function ( ...args ) {
+	if ( _origRender && ! _origRender._lut3dHooked ) {
 
-		if ( this.renderer ) {
+		RenderPipeline.prototype.render = function ( ...args ) {
 
-			_rendererPipelines.set( this.renderer, this );
+			if ( this.renderer ) {
 
-		}
+				_rendererPipelines.set( this.renderer, this );
 
-		return _origRender.apply( this, args );
+			}
 
-	};
+			return _origRender.apply( this, args );
 
-	RenderPipeline.prototype.render._lut3dHooked = true;
+		};
+
+		RenderPipeline.prototype.render._lut3dHooked = true;
+
+	}
 
 }
 
@@ -2434,7 +2442,7 @@ export class ColorGrading extends Extension {
 		const scene = primaryPass ? primaryPass.scene : null;
 		const camera = primaryPass ? primaryPass.camera : null;
 
-		if ( ! renderPipeline && scene && camera ) {
+		if ( ! renderPipeline && scene && camera && RenderPipeline ) {
 
 			this._createdPipeline = new RenderPipeline( renderer, pass( scene, camera ) );
 			renderPipeline = this._createdPipeline;

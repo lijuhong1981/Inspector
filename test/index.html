@@ -3,38 +3,76 @@
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>Inspector 测试页</title>
+	<title>Inspector 多版本测试页</title>
 	<style>
 		html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
 		#canvas-container { position: fixed; inset: 0; }
 		#canvas-container canvas { display: block; }
 		#hint {
-			position: fixed; left: 12px; top: 12px; z-index: 1;
+			position: fixed; left: 12px; bottom: 12px; z-index: 1;
 			color: #aaa; font: 12px/1.6 monospace; pointer-events: none;
 			background: rgba(0,0,0,.45); padding: 8px 10px; border-radius: 6px;
 		}
+		#version-bar {
+			position: fixed; left: 12px; top: 12px; z-index: 2000;
+			display: flex; align-items: center; gap: 8px;
+			background: rgba(0,0,0,.6); padding: 6px 10px; border-radius: 8px;
+			color: #ccc; font: 13px/1.6 monospace; border: 1px solid #333;
+		}
+		#version-bar select {
+			background: #1e1e24; color: #e0e0e0; border: 1px solid #555;
+			border-radius: 4px; padding: 4px 6px; font: 13px monospace; cursor: pointer;
+		}
 	</style>
 
-	<!--
-		three 通过 importmap 映射到本地 node_modules（当前 0.184.0）。
-		若要测试官方配套的 0.186，可改为 CDN：
-			"three":        "https://unpkg.com/three@0.186.1/build/three.module.js",
-			"three/webgpu": "https://unpkg.com/three@0.186.1/build/three.webgpu.js",
-			"three/tsl":    "https://unpkg.com/three@0.186.1/build/three.tsl.js"
-	-->
-	<script type="importmap">
-	{
-		"imports": {
-			"three":        "../node_modules/three/build/three.module.js",
-			"three/webgpu": "../node_modules/three/build/three.webgpu.js",
-			"three/tsl":    "../node_modules/three/build/three.tsl.js"
-		}
-	}
+	<script>
+		// 动态生成 importmap（必须在任何模块加载前），three 版本来自 localStorage，默认 0.186.1
+		( function () {
+
+			var version = localStorage.getItem( 'three-version' ) || '0.186.1';
+			window.__threeVersion = version;
+
+			var im = document.createElement( 'script' );
+			im.type = 'importmap';
+			im.textContent = JSON.stringify( {
+				imports: {
+					'three': 'https://unpkg.com/three@' + version + '/build/three.module.js',
+					'three/webgpu': 'https://unpkg.com/three@' + version + '/build/three.webgpu.js',
+					'three/tsl': 'https://unpkg.com/three@' + version + '/build/three.tsl.js'
+				}
+			} );
+			document.head.appendChild( im );
+
+		} )();
 	</script>
 </head>
 <body>
 	<div id="canvas-container"></div>
-	<div id="hint">右下角点击 Inspector 开关面板 · 右上角 TSL Graph / Color Grading 请在 Settings 里勾选启用</div>
+
+	<div id="version-bar">
+		<span>three</span>
+		<select id="version-select">
+			<option value="0.181.0">0.181.0</option>
+			<option value="0.182.0">0.182.0</option>
+			<option value="0.183.0">0.183.0</option>
+			<option value="0.184.0">0.184.0</option>
+			<option value="0.185.0">0.185.0</option>
+			<option value="0.186.1">0.186.1</option>
+		</select>
+	</div>
+
+	<div id="hint">切换版本后自动刷新 · 右下角 Inspector 开关面板 · TSL Graph / Color Grading 在 Settings 里启用</div>
+
+	<script>
+		var sel = document.getElementById( 'version-select' );
+		sel.value = window.__threeVersion;
+		sel.addEventListener( 'change', function () {
+
+			localStorage.setItem( 'three-version', sel.value );
+			location.reload();
+
+		} );
+	</script>
 
 	<script type="module" src="./main.js"></script>
 </body>
